@@ -1,0 +1,616 @@
+case_id,title,symptom,topology_notes,show_outputs,expected_fault,osi_layer,concept,severity
+1,Wrong VLAN Assignment on Access Port,"PC1 in Sales cannot communicate with other Sales PCs on VLAN 10. PC1 has correct IP 10.10.10.5/24 but cannot ping 10.10.10.1 (gateway).","Topology: PC1 -> Fa0/1 on SW1 -> Trunk to SW2. Sales VLAN is VLAN 10. PC1 should be on VLAN 10.","Switch#show vlan brief
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Fa0/7, Fa0/8
+10   Sales                            active    Fa0/2, Fa0/3
+20   Engineering                      active    Fa0/1, Fa0/4, Fa0/5
+30   Servers                          active    Fa0/6
+
+Switch#show interfaces fa0/1 switchport
+Name: Fa0/1
+Switchport: Enabled
+Administrative Mode: static access
+Operational Mode: static access
+Administrative Trunking Encapsulation: dot1q
+Operational Trunking Encapsulation: native
+Negotiation of Trunking: Off
+Access Mode VLAN: 20 (Engineering)
+Trunking Native Mode VLAN: 1 (default)",PC1 is assigned to VLAN 20 instead of VLAN 10,Layer 2,VLAN,High
+2,Trunk Not Allowing Required VLAN,"VLAN 30 traffic is not passing between SW1 and SW2. Servers on VLAN 30 connected to SW2 cannot be reached from SW1.","Topology: SW1 (Fa0/24) -- Trunk -- (Fa0/24) SW2. VLAN 30 used for servers.","SW1#show interfaces trunk
+
+Port        Mode             Encapsulation  Status        Native vlan
+Fa0/24      on               802.1q         trunking      1
+
+Port        Vlans allowed on trunk
+Fa0/24      1,10,20
+
+Port        Vlans allowed and active in management domain
+Fa0/24      1,10,20
+
+Port        Vlans in spanning tree forwarding state and not pruned
+Fa0/24      1,10,20
+
+SW1#show vlan brief
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    
+10   Sales                            active    Fa0/1, Fa0/2
+20   Engineering                      active    Fa0/3, Fa0/4
+30   Servers                          active    Fa0/5, Fa0/6",VLAN 30 is not allowed on the trunk link,Layer 2,VLAN,High
+3,Incorrect Default Gateway on PC,"PC2 can ping other devices on its subnet (10.10.10.0/24) but cannot reach any other network. IP configuration appears correct.","Topology: PC2 (10.10.10.10/24) -> SW1 -> Router (10.10.10.1 on Gig0/0). Router is the default gateway for VLAN 10.","PC>ipconfig
+
+FastEthernet0 Connection:(default port)
+
+   Connection-specific DNS Suffix..: 
+   Link-local IPv6 Address.........: FE80::2D0:97FF:FE12:3456
+   IPv6 Address....................: ::
+   IPv4 Address....................: 10.10.10.10
+   Subnet Mask.....................: 255.255.255.0
+   Default Gateway.................: 10.10.20.1
+
+PC>ping 10.10.10.1
+
+Pinging 10.10.10.1 with 32 bytes of data:
+
+Reply from 10.10.10.1: bytes=32 time<1ms TTL=255
+Reply from 10.10.10.1: bytes=32 time<1ms TTL=255
+
+PC>ping 10.10.30.5
+
+Pinging 10.10.30.5 with 32 bytes of data:
+
+Request timed out.
+Request timed out.",Default gateway 10.10.20.1 is not on the same subnet as PC2,Layer 3,Gateway,Medium
+4,DHCP Pool Misconfiguration — Wrong Network,"PCs on VLAN 10 are not receiving IP addresses via DHCP. Manual IP assignment works fine.","Topology: Router R1 acts as DHCP server for VLAN 10 (10.10.10.0/24). R1 Gig0/0.10 is the VLAN 10 gateway at 10.10.10.1/24.","R1#show ip dhcp pool
+
+Pool VLAN10 :
+ Utilization mark (high/low)    : 100 / 0
+ Subnet size (first/next)       : 0 / 0 
+ Total addresses                : 254
+ Leased addresses               : 0
+ Pending event                  : none
+ 1 subnet is currently in the pool :
+ Current index        IP address range                    Leased addresses
+ 10.10.20.1           10.10.20.1     - 10.10.20.254      0
+
+R1#show running-config | section dhcp
+ip dhcp pool VLAN10
+ network 10.10.20.0 255.255.255.0
+ default-router 10.10.20.1
+ dns-server 8.8.8.8
+
+R1#show ip interface brief
+Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet0/0.10  10.10.10.1      YES manual up                    up",DHCP pool configured with wrong network 10.10.20.0 instead of 10.10.10.0,Layer 7,DHCP,High
+5,DHCP Excluded Address Covers Entire Pool,"No DHCP leases are being assigned. Pool exists and network is correct but no addresses given out.","Topology: R1 is DHCP server for 192.168.1.0/24. Gateway is 192.168.1.1.","R1#show ip dhcp pool
+
+Pool LAN :
+ Utilization mark (high/low)    : 100 / 0
+ Subnet size (first/next)       : 0 / 0 
+ Total addresses                : 254
+ Leased addresses               : 0
+ Pending event                  : none
+ 1 subnet is currently in the pool :
+ Current index        IP address range                    Leased addresses
+ 192.168.1.1          192.168.1.1     - 192.168.1.254     0
+
+R1#show running-config | section dhcp
+ip dhcp excluded-address 192.168.1.1 192.168.1.254
+ip dhcp pool LAN
+ network 192.168.1.0 255.255.255.0
+ default-router 192.168.1.1
+ dns-server 8.8.8.8
+
+R1#show ip dhcp binding
+Bindings from all pools not associated with VRF:
+IP address          Client-ID/              Lease expiration        Type       State      Interface
+                    Hardware address/
+                    User name",All addresses excluded from DHCP pool,Layer 7,DHCP,High
+6,DNS Server Not Configured on DHCP,"PCs receive IP addresses via DHCP but cannot resolve hostnames. Direct IP connectivity works.","Topology: R1 DHCP server for VLAN 10. DNS should be 10.10.10.100.","R1#show running-config | section dhcp
+ip dhcp pool VLAN10
+ network 10.10.10.0 255.255.255.0
+ default-router 10.10.10.1
+
+PC>ipconfig /all
+
+FastEthernet0 Connection:(default port)
+
+   Connection-specific DNS Suffix..: 
+   IPv4 Address....................: 10.10.10.50
+   Subnet Mask.....................: 255.255.255.0
+   Default Gateway.................: 10.10.10.1
+   DNS Servers.....................: 0.0.0.0
+
+PC>ping 10.10.10.100
+Reply from 10.10.10.100: bytes=32 time<1ms TTL=128
+
+PC>ping www.example.com
+Ping request could not find host www.example.com.",DNS server not configured in DHCP pool,Layer 7,DNS,Medium
+7,Missing Static Route to Remote Network,"R1 can reach directly connected networks but packets to 172.16.0.0/16 are dropped. R2 has the destination network.","Topology: R1 (10.0.0.1/30) -- Serial -- (10.0.0.2/30) R2 -- (172.16.0.0/16). R2 has a route back to R1.","R1#show ip route
+Gateway of last resort is not set
+
+     10.0.0.0/8 is variably subnetted, 4 subnets, 2 masks
+C       10.0.0.0/30 is directly connected, Serial0/0/0
+L       10.0.0.1/32 is directly connected, Serial0/0/0
+C       10.10.10.0/24 is directly connected, GigabitEthernet0/0
+L       10.10.10.1/32 is directly connected, GigabitEthernet0/0
+
+R1#show ip interface brief
+Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet0/0     10.10.10.1      YES manual up                    up
+Serial0/0/0            10.0.0.1        YES manual up                    up
+
+R1#ping 172.16.0.1
+Type escape sequence to abort.
+Sending 5, 100-byte ICMP Echos to 172.16.0.1, timeout is 2 seconds:
+.....
+Success rate is 0 percent (0/5)",No route to 172.16.0.0/16 on R1,Layer 3,Routing,High
+8,OSPF Neighbor Not Forming,"R1 and R2 are configured for OSPF but adjacency is not forming. Both interfaces are up.","Topology: R1 (10.0.0.1/30) -- Ethernet -- (10.0.0.2/30) R2. Both run OSPF area 0.","R1#show ip ospf neighbor
+
+R1#show ip ospf interface gig0/1
+GigabitEthernet0/1 is up, line protocol is up
+  Internet Address 10.0.0.1/30, Area 0
+  Process ID 1, Router ID 1.1.1.1, Network Type BROADCAST, Cost: 1
+  Transmit Delay is 1 sec, State DR, Priority 1
+  Hello 10, Dead 40, Wait 40, Retransmit 5
+
+R2#show ip ospf interface gig0/1
+GigabitEthernet0/1 is up, line protocol is up
+  Internet Address 10.0.0.2/30, Area 1
+  Process ID 1, Router ID 2.2.2.2, Network Type BROADCAST, Cost: 1
+  Transmit Delay is 1 sec, State DR, Priority 1
+  Hello 10, Dead 40, Wait 40, Retransmit 5",OSPF area mismatch between R1 (area 0) and R2 (area 1),Layer 3,Routing,Critical
+9,ACL Blocking HTTP Traffic,"Users on 10.10.10.0/24 cannot access the web server at 10.10.30.100. Ping works. Other traffic works.","Topology: R1 routes between VLAN 10 (users) and VLAN 30 (servers). ACL applied on R1.","R1#show access-lists
+Extended IP access list 101
+    10 deny   tcp 10.10.10.0 0.0.0.255 host 10.10.30.100 eq www (45 matches)
+    20 permit ip any any (1023 matches)
+
+R1#show ip interface gig0/0
+GigabitEthernet0/0 is up, line protocol is up
+  Internet address is 10.10.10.1/24
+  Outgoing access list is not set
+  Inbound access list is 101
+
+R1#ping 10.10.30.100
+Type escape sequence to abort.
+!!!!!
+Success rate is 100 percent (5/5)",ACL 101 explicitly denies HTTP (tcp port 80) from users to server,Layer 4,ACL,High
+10,NAT Inside/Outside Interface Misconfiguration,"Internal hosts cannot access the internet. NAT is configured but not translating.","Topology: R1 Gig0/0 (inside 192.168.1.1/24) -- R1 Gig0/1 (outside 203.0.113.1/24) -- Internet.","R1#show ip nat translations
+
+R1#show ip nat statistics
+Total active translations: 0
+Outside interfaces:
+Inside interfaces:
+
+R1#show running-config | section nat
+ip nat inside source list 1 interface GigabitEthernet0/1 overload
+access-list 1 permit 192.168.1.0 0.0.0.255
+
+R1#show ip interface gig0/0
+GigabitEthernet0/0 is up, line protocol is up
+  Internet address is 192.168.1.1/24
+
+R1#show ip interface gig0/1
+GigabitEthernet0/1 is up, line protocol is up
+  Internet address is 203.0.113.1/24",NAT inside and outside interfaces not configured (ip nat inside/outside missing),Layer 3,NAT,High
+11,Interface Administratively Down,"PC connected to Fa0/5 cannot communicate. Link light is off. Cable tested OK.","Topology: PC3 -> Fa0/5 on SW1. SW1 is the access layer switch.","SW1#show ip interface brief
+Interface              IP-Address      OK? Method Status                Protocol
+FastEthernet0/1        unassigned      YES unset  up                    up
+FastEthernet0/2        unassigned      YES unset  up                    up
+FastEthernet0/3        unassigned      YES unset  up                    up
+FastEthernet0/4        unassigned      YES unset  up                    up
+FastEthernet0/5        unassigned      YES unset  administratively down down
+FastEthernet0/6        unassigned      YES unset  up                    up
+
+SW1#show interfaces fa0/5
+FastEthernet0/5 is administratively down, line protocol is down (disabled)
+  Hardware is Fast Ethernet, address is 0001.0001.0005 (bia 0001.0001.0005)
+  MTU 1500 bytes, BW 100000 Kbit, DLY 100 usec,
+     reliability 255/255, txload 1/255, rxload 1/255",Interface Fa0/5 is administratively shut down,Layer 1,Gateway,Low
+12,Duplex Mismatch Causing Slow Performance,"File transfers between PC1 and the server are extremely slow. Connection works but performance is terrible. Many CRC errors observed.","Topology: PC1 -> Fa0/1 SW1. Server -> Fa0/10 SW1.","SW1#show interfaces fa0/1
+FastEthernet0/1 is up, line protocol is up (connected)
+  Hardware is Fast Ethernet, address is 0001.0001.0001 (bia 0001.0001.0001)
+  Full-duplex, 100Mb/s
+  Input queue: 0/75/0/0 (size/max/drops/flushes)
+     0 input errors, 0 CRC, 0 frame, 0 overrun, 0 ignored
+
+SW1#show interfaces fa0/10
+FastEthernet0/10 is up, line protocol is up (connected)
+  Hardware is Fast Ethernet, address is 0001.0001.0010 (bia 0001.0001.0010)
+  Half-duplex, 100Mb/s
+  Input queue: 0/75/0/0 (size/max/drops/flushes)
+     1sobrecarga2 input errors, 1024 CRC, 512 frame, 0 overrun, 0 ignored
+  Output queue: 0/40 (size/max)
+     890 late collisions",Duplex mismatch on Fa0/10 - half-duplex causing CRC errors and late collisions,Layer 1,Gateway,Medium
+13,Native VLAN Mismatch on Trunk,"Intermittent connectivity issues across the trunk link. Some VLANs work some do not. CDP errors in logs.","Topology: SW1 (Fa0/24) -- Trunk -- (Fa0/24) SW2.","SW1#show interfaces trunk
+Port        Mode             Encapsulation  Status        Native vlan
+Fa0/24      on               802.1q         trunking      1
+
+SW2#show interfaces trunk
+Port        Mode             Encapsulation  Status        Native vlan
+Fa0/24      on               802.1q         trunking      99
+
+%CDP-4-NATIVE_VLAN_MISMATCH: Native VLAN mismatch discovered on Fa0/24 (1), with SW2 Fa0/24 (99).",Native VLAN mismatch between SW1 (VLAN 1) and SW2 (VLAN 99),Layer 2,VLAN,High
+14,STP Root Bridge Election Issue,"Network experiencing broadcast storms and slow performance after adding a new switch. New switch has lower priority.","Topology: SW1 (root) -- SW2 -- SW3 (new switch with priority 0).","SW3#show spanning-tree
+
+VLAN0001
+  Spanning tree enabled protocol ieee
+  Root ID    Priority    1
+             Address     0001.0003.0001
+             This bridge is the root
+             Hello Time   2 sec  Max Age 20 sec  Forward Delay 15 sec
+
+SW1#show spanning-tree
+VLAN0001
+  Spanning tree enabled protocol ieee
+  Root ID    Priority    1
+             Address     0001.0003.0001
+             Cost        4
+             Port        24 (FastEthernet0/24)
+             Hello Time   2 sec  Max Age 20 sec  Forward Delay 15 sec
+
+  Bridge ID  Priority    32769  (priority 32768 sys-id-ext 1)
+             Address     0001.0001.0001",New switch SW3 has become root bridge due to lowest priority (1),Layer 2,VLAN,Critical
+15,Router Subinterface Not Created for Inter-VLAN Routing,"VLAN 10 and VLAN 20 hosts cannot communicate. Router-on-a-stick configured but subinterfaces missing.","Topology: SW1 (Fa0/24 trunk) -- R1 (Gig0/0). VLANs 10 and 20 need routing.","R1#show ip interface brief
+Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet0/0     unassigned      YES unset  up                    up
+
+R1#show running-config | section interface
+interface GigabitEthernet0/0
+ no ip address
+ no shutdown
+
+SW1#show interfaces trunk
+Port        Mode             Encapsulation  Status        Native vlan
+Fa0/24      on               802.1q         trunking      1
+
+Port        Vlans allowed on trunk
+Fa0/24      1,10,20",No subinterfaces configured on R1 for inter-VLAN routing,Layer 3,Routing,High
+16,EIGRP AS Number Mismatch,"R1 and R2 not forming EIGRP neighbor relationship. Both interfaces are up and can ping each other.","Topology: R1 (10.0.0.1/30) -- (10.0.0.2/30) R2. Both should run EIGRP.","R1#show ip eigrp neighbors
+
+R1#show running-config | section eigrp
+router eigrp 100
+ network 10.0.0.0
+ no auto-summary
+
+R2#show running-config | section eigrp
+router eigrp 200
+ network 10.0.0.0
+ no auto-summary
+
+R1#ping 10.0.0.2
+!!!!!
+Success rate is 100 percent",EIGRP AS number mismatch - R1 uses AS 100 and R2 uses AS 200,Layer 3,Routing,High
+17,ACL Implicit Deny Blocking All Traffic,"No traffic passes through R1 after applying an ACL. Only SSH was supposed to be allowed.","Topology: R1 connects LAN (10.10.10.0/24) to WAN. ACL applied inbound on LAN interface.","R1#show access-lists
+Standard IP access list 10
+    10 permit 10.10.10.0, wildcard bits 0.0.0.255 (0 matches)
+
+R1#show ip interface gig0/0
+GigabitEthernet0/0 is up, line protocol is up
+  Internet address is 10.10.10.1/24
+  Outgoing access list is not set
+  Inbound access list is not set
+
+R1#show ip interface gig0/1
+GigabitEthernet0/1 is up, line protocol is up
+  Internet address is 203.0.113.1/24
+  Outgoing access list is 10
+  Inbound access list is not set",Standard ACL 10 applied outbound only permits source 10.10.10.0/24 - implicit deny blocks return traffic,Layer 4,ACL,High
+18,NAT Pool Address Exhaustion,"Some internal hosts can access the internet while others cannot. Problem is intermittent.","Topology: R1 NAT with pool of 2 addresses for 50 internal hosts.","R1#show ip nat translations
+Pro Inside global      Inside local       Outside local      Outside global
+--- 203.0.113.10       192.168.1.10       ---                ---
+--- 203.0.113.11       192.168.1.15       ---                ---
+
+R1#show ip nat statistics
+Total active translations: 2 (0 static, 2 dynamic; 2 extended)
+Peak translations: 2, occurred 00:05:23 ago
+Outside interfaces:
+  GigabitEthernet0/1
+Inside interfaces:
+  GigabitEthernet0/0
+Hits: 245  Misses: 48
+Pool NAT_POOL: netmask 255.255.255.252
+        start 203.0.113.10 end 203.0.113.11
+        type generic, total addresses 2, allocated 2 (100%), misses 48",NAT pool only has 2 addresses for 50+ hosts causing address exhaustion,Layer 3,NAT,High
+19,Wireless SSID Not Broadcasting,"Laptops cannot see the wireless network. AP is powered on and lights indicate normal operation.","Topology: WLC -- AP1. SSID 'Corporate-WiFi' should be broadcasting.","WLC>show wlan summary
+
+WLAN ID  WLAN Profile Name / SSID               Status    Interface Name
+-------  ------------------------------------   --------  --------------------
+1        Corporate-WiFi / Corporate-WiFi         Disabled  management
+
+WLC>show wlan 1
+
+WLAN Identifier.................................. 1
+Profile Name..................................... Corporate-WiFi
+Network Name (SSID).............................. Corporate-WiFi
+Status........................................... Disabled
+Broadcast SSID................................... Enabled",WLAN is disabled on the controller,Layer 2,Wireless,Medium
+20,Guest WiFi Reaching Internal Server,"Guest wireless users can access internal file server at 10.10.30.50. This is a security violation.","Topology: WLC with Guest VLAN 50 and Internal VLAN 30. ACL should isolate guest traffic.","WLC>show wlan 2
+
+WLAN Identifier.................................. 2
+Profile Name..................................... Guest-WiFi
+Network Name (SSID).............................. Guest-WiFi
+Status........................................... Enabled
+Interface Name................................... management
+VLAN............................................. 50
+
+R1#show access-lists
+Extended IP access list GUEST_ACL
+
+R1#show ip interface gig0/0.50
+GigabitEthernet0/0.50 is up, line protocol is up
+  Internet address is 10.10.50.1/24
+  Outgoing access list is not set
+  Inbound access list is not set
+
+Guest-PC>ping 10.10.30.50
+Reply from 10.10.30.50: bytes=32 time=2ms TTL=126",No ACL applied to guest VLAN interface - guest isolation failure,Layer 4,Wireless,Critical
+21,DHCP Relay Not Configured,"PCs on VLAN 20 not getting DHCP addresses. DHCP server is on a different subnet. PCs on VLAN 10 (same subnet as DHCP server) work fine.","Topology: R1 is DHCP server on VLAN 10. VLAN 20 hosts need DHCP relay (ip helper-address).","R1#show running-config interface gig0/0.20
+interface GigabitEthernet0/0.20
+ encapsulation dot1Q 20
+ ip address 10.10.20.1 255.255.255.0
+
+R1#show running-config | section dhcp
+ip dhcp pool VLAN20
+ network 10.10.20.0 255.255.255.0
+ default-router 10.10.20.1
+ dns-server 8.8.8.8
+
+PC-VLAN20>ipconfig
+FastEthernet0 Connection:(default port)
+   IPv4 Address....................: 169.254.10.5
+   Subnet Mask.....................: 255.255.0.0
+   Default Gateway.................: ",ip helper-address not configured on VLAN 20 subinterface,Layer 7,DHCP,High
+22,Incorrect Wildcard Mask in OSPF Network Statement,"OSPF not advertising the 10.10.10.0/24 network. Neighbors form but routes are missing.","Topology: R1 has 10.10.10.0/24 on Gig0/0. OSPF should advertise this network.","R1#show ip ospf interface gig0/0
+
+R1#show ip protocols
+Routing Protocol is 'ospf 1'
+  Outgoing update filter list for all interfaces is not set
+  Incoming update filter list for all interfaces is not set
+  Router ID 1.1.1.1
+  Number of areas in this router is 1. 1 normal 0 stub 0 nssa
+  Routing for Networks:
+    10.10.10.0 0.0.0.0 area 0
+    10.0.0.0 0.0.0.3 area 0
+
+R1#show running-config | section ospf
+router ospf 1
+ network 10.10.10.0 0.0.0.0 area 0
+ network 10.0.0.0 0.0.0.3 area 0",OSPF network statement uses 0.0.0.0 wildcard for 10.10.10.0 - only matches host route not /24 subnet,Layer 3,Routing,Medium
+23,Port Security Violation - MAC Address,"PC replaced on a port but new PC cannot connect. Port security configured with sticky MAC.","Topology: PC-New connected to SW1 Fa0/3. Port security enabled with sticky MAC.","SW1#show port-security interface fa0/3
+Port Security              : Enabled
+Port Status                : Secure-shutdown
+Violation Mode             : Shutdown
+Aging Time                 : 0 mins
+Aging Type                 : Absolute
+SecureStatic Address Aging : Disabled
+Maximum MAC Addresses      : 1
+Total MAC Addresses        : 1
+Configured MAC Addresses   : 0
+Sticky MAC Addresses       : 1
+Last Source Address:Vlan    : 00D0.BA12.3456:10
+Security Violation Count   : 1
+
+SW1#show interfaces fa0/3
+FastEthernet0/3 is down, line protocol is down (err-disabled)
+  Hardware is Fast Ethernet, address is 0001.0001.0003",Port security violation - new MAC triggered err-disabled state,Layer 2,VLAN,Medium
+24,Incorrect Subnet Mask on Router Interface,"Two routers connected but cannot ping each other. IPs appear correct.","Topology: R1 (10.0.0.1) -- Ethernet -- (10.0.0.2) R2. Should be /30 point-to-point.","R1#show ip interface brief
+Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet0/1     10.0.0.1        YES manual up                    up
+
+R1#show interfaces gig0/1
+GigabitEthernet0/1 is up, line protocol is up
+  Internet address is 10.0.0.1/24
+
+R2#show interfaces gig0/1
+GigabitEthernet0/1 is up, line protocol is up
+  Internet address is 10.0.0.2/30
+
+R1#ping 10.0.0.2
+!!!!!
+Success rate is 100 percent
+
+R2#ping 10.0.0.1
+.....
+Success rate is 0 percent",Subnet mask mismatch - R1 has /24 and R2 has /30 causing asymmetric routing issues,Layer 3,Gateway,Medium
+25,HSRP Misconfiguration - Same Priority Both Routers,"Failover not working correctly. Both routers think they are active HSRP router.","Topology: R1 and R2 provide HSRP gateway for VLAN 10. Virtual IP 10.10.10.1.","R1#show standby
+GigabitEthernet0/0 - Group 1
+  State is Active
+    2 state changes, last state change 00:15:30
+  Virtual IP address is 10.10.10.1
+  Active virtual MAC address is 0000.0c07.ac01
+  Local virtual MAC address is 0000.0c07.ac01 (v1 default)
+  Hello time 3 sec, hold time 10 sec
+  Preemption disabled
+  Active router is local
+  Priority 100 (default 100)
+
+R2#show standby
+GigabitEthernet0/0 - Group 1
+  State is Active
+    3 state changes, last state change 00:10:15
+  Virtual IP address is 10.10.10.1
+  Active virtual MAC address is 0000.0c07.ac01
+  Local virtual MAC address is 0000.0c07.ac01 (v1 default)
+  Hello time 3 sec, hold time 10 sec
+  Preemption disabled
+  Active router is local
+  Priority 100 (default 100)",Both HSRP routers have same priority and both claim active state,Layer 3,Routing,Critical
+26,NAT Static Mapping Wrong Port,"External users cannot reach internal web server via public IP. NAT static mapping exists but wrong port.","Topology: R1 NAT static maps public 203.0.113.50:80 to internal 192.168.1.100.","R1#show ip nat translations
+Pro Inside global         Inside local          Outside local         Outside global
+tcp 203.0.113.50:8080     192.168.1.100:8080    ---                   ---
+
+R1#show running-config | section nat
+ip nat inside source static tcp 192.168.1.100 8080 203.0.113.50 8080
+
+R1#show ip nat statistics
+Total active translations: 1 (1 static, 0 dynamic; 1 extended)
+Outside interfaces:
+  GigabitEthernet0/1
+Inside interfaces:
+  GigabitEthernet0/0",NAT static mapping uses port 8080 instead of port 80,Layer 3,NAT,High
+27,DNS Server Unreachable,"All name resolution failing. DHCP provides DNS server address but server is not reachable from client VLAN.","Topology: DNS Server (10.10.30.53) on VLAN 30. Clients on VLAN 10. R1 routes between VLANs.","PC>ipconfig /all
+   DNS Servers.....................: 10.10.30.53
+   Default Gateway.................: 10.10.10.1
+
+PC>ping 10.10.30.53
+Request timed out.
+Request timed out.
+
+PC>ping 10.10.10.1
+Reply from 10.10.10.1: bytes=32 time<1ms TTL=255
+
+R1#show ip route
+     10.0.0.0/8 is variably subnetted, 4 subnets, 2 masks
+C       10.10.10.0/24 is directly connected, GigabitEthernet0/0.10
+C       10.10.20.0/24 is directly connected, GigabitEthernet0/0.20
+
+R1#ping 10.10.30.53
+Destination host unreachable.",No route to VLAN 30 (10.10.30.0/24) on router - DNS server unreachable,Layer 3,DNS,High
+28,Wireless Security Type Mismatch,"Laptop shows 'Authentication failed' when connecting to corporate WiFi. Password is correct.","Topology: WLC manages AP. Corporate SSID uses WPA2-Enterprise. Laptop configured for WPA2-Personal.","WLC>show wlan 1
+WLAN Identifier.................................. 1
+Profile Name..................................... Corporate-WiFi
+Network Name (SSID).............................. Corporate-WiFi
+Status........................................... Enabled
+Security
+   802.11 Authentication......................... Open System
+   Wi-Fi Protected Access (WPA/WPA2)............. Enabled
+      WPA2 (RSN) Encryption...................... AES
+      Auth Key Management
+         802.1x.................................. Enabled
+         PSK..................................... Disabled
+
+Client-Laptop>Wireless Configuration
+   SSID: Corporate-WiFi
+   Security: WPA2-PSK
+   Status: Authentication Failed",Security type mismatch - WLAN uses WPA2-Enterprise (802.1x) but client configured for WPA2-PSK,Layer 2,Wireless,Medium
+29,Routing Loop Between Two Routers,"Traceroute shows packets bouncing between R1 and R2 indefinitely. TTL exceeded messages from both routers.","Topology: R1 -- R2 -- R3. Destination 172.16.0.0/16 is on R3.","R1#show ip route
+S    172.16.0.0/16 [1/0] via 10.0.0.2
+
+R2#show ip route
+S    172.16.0.0/16 [1/0] via 10.0.0.1
+
+PC>tracert 172.16.1.1
+  1   10.10.10.1    1 ms
+  2   10.0.0.2      2 ms
+  3   10.0.0.1      3 ms
+  4   10.0.0.2      4 ms
+  5   10.0.0.1      5 ms
+  6   10.0.0.2      6 ms
+  ...TTL expired",Routing loop - R1 points to R2 and R2 points back to R1 for 172.16.0.0/16,Layer 3,Routing,Critical
+30,VTP Server/Client VLAN Mismatch,"New VLANs created on SW1 (VTP server) not appearing on SW2 (VTP client). Trunk is up.","Topology: SW1 (VTP Server) -- Trunk -- SW2 (VTP Client). VTP domain should be 'CORP'.","SW1#show vtp status
+VTP Version                     : 2
+Configuration Revision          : 15
+Maximum VLANs supported locally : 255
+Number of existing VLANs        : 7
+VTP Operating Mode              : Server
+VTP Domain Name                 : CORP
+VTP Pruning Mode                : Disabled
+
+SW2#show vtp status
+VTP Version                     : 2
+Configuration Revision          : 3
+Maximum VLANs supported locally : 255
+Number of existing VLANs        : 4
+VTP Operating Mode              : Client
+VTP Domain Name                 : CORPORATE
+VTP Pruning Mode                : Disabled
+
+SW1#show vlan brief
+VLAN Name                             Status    Ports
+1    default                          active
+10   Sales                            active
+20   Engineering                      active
+30   Servers                          active
+40   Management                       active
+50   Guest                            active
+99   Native                           active",VTP domain name mismatch - SW1 is 'CORP' and SW2 is 'CORPORATE',Layer 2,VLAN,High
+31,Incorrect Clock Rate on Serial Interface,"Serial link between R1 and R2 not coming up. Physical connection verified.","Topology: R1 (DCE Serial0/0/0) -- (DTE Serial0/0/0) R2.","R1#show interfaces serial0/0/0
+Serial0/0/0 is up, line protocol is down
+  Hardware is WIC 2T
+  Internet address is 10.0.0.1/30
+  MTU 1500 bytes, BW 1544 Kbit/sec, DLY 20000 usec
+
+R1#show controllers serial0/0/0
+Interface Serial0/0/0
+Hardware is WIC 2T
+DCE V.35, no clock rate
+
+R2#show interfaces serial0/0/0
+Serial0/0/0 is up, line protocol is down
+  Hardware is WIC 2T
+  Internet address is 10.0.0.2/30",Clock rate not set on DCE side (R1) - serial line protocol stays down,Layer 1,Gateway,Medium
+32,Duplicate IP Address Conflict,"Intermittent connectivity for two PCs. Both lose connection randomly. ARP issues observed.","Topology: PC-A and PC-B on VLAN 10 connected to SW1. Both assigned 10.10.10.50.","SW1#show mac address-table
+          Mac Address Table
+-------------------------------------------
+Vlan    Mac Address       Type        Ports
+----    -----------       --------    -----
+10      00D0.BA11.1111    DYNAMIC     Fa0/1
+10      00D0.BA22.2222    DYNAMIC     Fa0/2
+
+PC-A>ipconfig
+   IPv4 Address....................: 10.10.10.50
+   Subnet Mask.....................: 255.255.255.0
+
+PC-B>ipconfig
+   IPv4 Address....................: 10.10.10.50
+   Subnet Mask.....................: 255.255.255.0
+
+PC-A>arp -a
+  Internet Address      Physical Address      Type
+  10.10.10.50           00d0.ba22.2222        dynamic
+
+%IP-4-DUPADDR: Duplicate address 10.10.10.50 on Vlan10",Duplicate IP address 10.10.10.50 assigned to both PC-A and PC-B,Layer 3,Gateway,High
+33,EtherChannel Misconfiguration,"Aggregated link between SW1 and SW2 not forming. Individual ports are up but channel not bundled.","Topology: SW1 (Fa0/23-24) -- EtherChannel -- (Fa0/23-24) SW2.","SW1#show etherchannel summary
+Flags:  D - down        P - bundled in port-channel
+        I - stand-alone s - suspended
+        H - Hot-standby (LACP only)
+        R - Layer3      S - Layer2
+        U - in use
+
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+1      Po1(SD)       PAgP        Fa0/23(I) Fa0/24(I)
+
+SW2#show etherchannel summary
+Group  Port-channel  Protocol    Ports
+------+-------------+-----------+-----------------------------------------------
+1      Po1(SD)       LACP        Fa0/23(I) Fa0/24(I)
+
+SW1#show running-config | include channel-group
+interface FastEthernet0/23
+ channel-group 1 mode desirable
+interface FastEthernet0/24
+ channel-group 1 mode desirable",EtherChannel protocol mismatch - SW1 uses PAgP (desirable) and SW2 uses LACP,Layer 2,VLAN,High
+34,DHCP Snooping Blocking Legitimate DHCP,"DHCP not working after enabling DHCP snooping. Legitimate DHCP server offers being dropped.","Topology: SW1 with DHCP snooping enabled. R1 (DHCP server) connected on Fa0/24.","SW1#show ip dhcp snooping
+Switch DHCP snooping is enabled
+DHCP snooping is configured on following VLANs:
+10,20
+
+SW1#show ip dhcp snooping binding
+
+SW1#show running-config | include dhcp
+ip dhcp snooping
+ip dhcp snooping vlan 10,20
+
+SW1#show ip dhcp snooping trust
+Interface                  Trusted
+------------------------   -------
+FastEthernet0/1            no
+FastEthernet0/24           no",DHCP server port Fa0/24 not configured as trusted - DHCP snooping dropping server offers,Layer 2,DHCP,High
+35,Wireless Channel Overlap Causing Poor Performance,"Users experience very slow WiFi and frequent disconnections in specific area. Signal strength appears good.","Topology: AP1 (Channel 1) and AP2 (Channel 2) in adjacent rooms. 2.4GHz band.","WLC>show ap summary
+AP Name             Slots  AP Model           Ethernet MAC       Location        Channel
+----                -----  --------           ----------------   --------        -------
+AP1                 2      AIR-CAP1702I       aa:bb:cc:dd:ee:01  Building-A-101  1
+AP2                 2      AIR-CAP1702I       aa:bb:cc:dd:ee:02  Building-A-102  2
+
+WLC>show 802.11b
+Channel Assignment
+  AP Name             Channel  Power Level  Interference
+  ------              -------  -----------  ------------
+  AP1                 1        1            High
+  AP2                 2        1            High
+
+Recommended non-overlapping channels: 1, 6, 11",Adjacent APs using overlapping channels (1 and 2) instead of non-overlapping channels (1/6/11),Layer 1,Wireless,Medium

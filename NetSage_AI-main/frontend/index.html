@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="NetSage AI — Enterprise Network Intelligence & Neural Diagnostic Operations Platform. Real-time Cisco topology telemetry, root-cause diagnostics, and human-in-the-loop governance.">
+    <title>NetSage AI — Enterprise Network Operations & Diagnostics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <!-- Ambient Liquid Aurora Mesh & Floating Light Particles -->
+    <div class="ambient-canvas" aria-hidden="true">
+        <div class="ambient-orb orb-primary"></div>
+        <div class="ambient-orb orb-secondary"></div>
+        <div class="ambient-orb orb-accent"></div>
+        <div class="ambient-orb orb-cyan"></div>
+        <div class="ambient-grid-overlay"></div>
+    </div>
+
+    <!-- Floating Dynamic Island Header Bar -->
+    <header class="dynamic-island-header">
+        <div class="island-brand" onclick="navigateTo('dashboard')">
+            <div class="logo-icon-wrap">
+                <div class="logo-icon">NS</div>
+                <div class="logo-glow"></div>
+            </div>
+            <div class="island-brand-text">
+                <span class="logo-text">NetSage<span class="logo-highlight">.AI</span></span>
+                <span class="logo-subtitle">Network Intelligence</span>
+            </div>
+        </div>
+
+        <!-- Dynamic Island Nav Pills -->
+        <nav class="island-nav">
+            <button class="nav-pill active" data-page="dashboard" onclick="navigateTo('dashboard')">
+                <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg>
+                <span class="pill-text">Dashboard</span>
+            </button>
+            <button class="nav-pill" data-page="cases" onclick="navigateTo('cases')">
+                <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                <span class="pill-text">Incidents</span>
+            </button>
+            <button class="nav-pill" data-page="new-case" onclick="navigateTo('new-case')">
+                <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span class="pill-text">New Case</span>
+            </button>
+            <button class="nav-pill" data-page="analytics" onclick="navigateTo('analytics')">
+                <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+                <span class="pill-text">Analytics</span>
+            </button>
+            <button class="nav-pill" data-page="responsible-ai" onclick="navigateTo('responsible-ai')">
+                <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                <span class="pill-text">Governance</span>
+            </button>
+            <button class="nav-pill" data-page="demo" onclick="navigateTo('demo')">
+                <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span class="pill-text">Guided Tour</span>
+            </button>
+        </nav>
+
+        <!-- Live Telemetry Ticker & Quick Palette Launcher -->
+        <div class="island-telemetry">
+            <button class="cmd-palette-btn" onclick="openCommandPalette()" title="Press Ctrl+K / Cmd+K">
+                <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <span>Search</span>
+                <span class="kbd-shortcut">Ctrl+K</span>
+            </button>
+            <div class="ticker-chip" id="networkTelemetryTicker">
+                <span class="status-pulse-dot"></span>
+                <span id="tickerLatency">RTT: 1.2ms</span>
+            </div>
+            <div class="demo-badge glass-pill" id="modeBadge">
+                <span class="status-pulse-dot"></span>
+                <span id="modeBadgeText">Demo Mode</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Application Canvas -->
+    <main class="app-viewport">
+        <!-- Page: Dashboard -->
+        <div id="page-dashboard" class="page">
+            <div class="page-body" id="dashboard-content">
+                <div class="spinner-container">
+                    <div class="spinner"></div>
+                    <p class="loading-text">Synchronizing network intelligence...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: Cases -->
+        <div id="page-cases" class="page hidden">
+            <div class="page-body" id="cases-content">
+                <div class="spinner-container">
+                    <div class="spinner"></div>
+                    <p class="loading-text">Fetching incident stream...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: Case Detail -->
+        <div id="page-case-detail" class="page hidden">
+            <div class="page-body" id="case-detail-content">
+                <div class="spinner-container">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: New Case -->
+        <div id="page-new-case" class="page hidden">
+            <div class="page-body" id="new-case-content"></div>
+        </div>
+
+        <!-- Page: Analytics -->
+        <div id="page-analytics" class="page hidden">
+            <div class="page-body" id="analytics-content">
+                <div class="spinner-container">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: Responsible AI -->
+        <div id="page-responsible-ai" class="page hidden">
+            <div class="page-body" id="responsible-ai-content">
+                <div class="spinner-container">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page: Demo Mode -->
+        <div id="page-demo" class="page hidden">
+            <div class="page-body" id="demo-content"></div>
+        </div>
+    </main>
+
+    <!-- Command Palette (Ctrl+K) Modal Overlay -->
+    <div class="cmd-palette-overlay" id="cmdPaletteOverlay">
+        <div class="cmd-palette-modal glass-modal">
+            <div class="cmd-palette-search">
+                <svg class="nav-svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:18px;height:18px;color:var(--text-muted);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="cmdPaletteInput" placeholder="Type a command, incident ID (e.g. CASE-001), or search..." autocomplete="off">
+                <span class="cmd-esc-badge" onclick="closeCommandPalette()">ESC</span>
+            </div>
+            <div class="cmd-palette-results" id="cmdPaletteResults">
+                <!-- Populated dynamically via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Node Telemetry Inspector Drawer / Popover -->
+    <div class="node-inspector-overlay" id="nodeInspectorOverlay" onclick="closeNodeInspector(event)">
+        <div class="node-inspector-card glass-modal" id="nodeInspectorCard">
+            <!-- Node details populated dynamically -->
+        </div>
+    </div>
+
+    <!-- Generic Glass Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal glass-modal" id="modal">
+            <div class="modal-header">
+                <h2 id="modalTitle"></h2>
+                <button class="modal-close" onclick="closeModal()" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer" id="modalFooter"></div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- JavaScript Modules -->
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/components.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/cases.js"></script>
+    <script src="/static/js/case-detail.js"></script>
+    <script src="/static/js/case-form.js"></script>
+    <script src="/static/js/analytics.js"></script>
+    <script src="/static/js/responsible-ai.js"></script>
+    <script src="/static/js/demo.js"></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
