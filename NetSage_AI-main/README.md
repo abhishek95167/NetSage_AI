@@ -306,9 +306,8 @@ AI-Human Agreement Rate = Accepted Cases / Reviewed Cases × 100
 
 ## Team Members
 
-- Abhishek kumar Das Pattanayak (2306172)
-- Abhipray Pradhan (2306004)
-- surya prakash (2306236)
+ABHISHEK KUMAR - 2305507
+TUSHAR         -2306348
 
 
 ## License
